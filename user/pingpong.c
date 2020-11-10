@@ -1,0 +1,36 @@
+#include "kernel/types.h"
+#include "user/user.h"
+
+typedef short pid_t;
+
+pid_t Fork(void){
+  pid_t pid;
+
+  if((pid = fork()) < 0){
+    printf("Fork error");
+  }
+  return pid;
+}
+
+int main(void) 
+{
+  int parent_fd[2], child_fd[2];
+  int pid;
+  char buf[6];
+  
+  pipe(parent_fd);
+  pipe(child_fd);
+
+  if((pid = Fork()) == 0){
+    read(parent_fd[0], &buf, 6);  //直到父进程写完才解除阻塞
+    printf("%d: received ping\n", getpid());
+    write(child_fd[1], buf, 6);
+  }else{
+    write(parent_fd[1], "hello\n", 6);
+    read(child_fd[0], &buf, 6);  //直到子进程写完才解除阻塞
+    printf("%d: received pong\n", getpid());
+  }
+
+  exit();
+}
+
