@@ -2,6 +2,7 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
+//把echo后面跟着的输出到1上
 int
 main(int argc, char *argv[])
 {
