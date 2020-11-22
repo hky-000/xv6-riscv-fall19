@@ -26,22 +26,30 @@ void prime(int *data, int num){
   
 	pipe(p);
   if(Fork() == 0){
+    close(p[0]);
     for(i = 0; i < num; i++){
       temp = *(data + i);
       write(p[1], &temp, 4); //int 4个字节
+      //printf("write: %d\n",temp);
     }
+    close(p[1]);
     exit();
   }else{
     close(p[1]);
     int count = 0;
     int buf;
-    while(read(p[0], &buf, 4) != 0){
+    int flag;
+    while((flag = read(p[0], &buf, 4)) != 0){
+      //printf("flag: %d\n",flag);
+      //printf("read: %d\n",buf);
       if(buf % base != 0){
         *data = buf;
         data += 1;
         count++;
       }
     }
+    //printf("flag: %d\n",flag);
+    close(p[0]);
     prime(data - count, count);
     
     wait();

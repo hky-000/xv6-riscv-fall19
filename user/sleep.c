@@ -4,7 +4,6 @@
 int main(int argc, char *argv[])
 {
     int sleepNum = atoi(argv[1]);
-
 	if(argc != 2){
 		fprintf(2, "usage: must 1 argument for sleep\n");
 		exit();

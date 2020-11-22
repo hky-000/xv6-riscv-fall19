@@ -18,16 +18,24 @@ int main(void)
   int pid;
   char buf[6];
   
-  pipe(parent_fd);
+  pipe(parent_fd); //0读 1写
   pipe(child_fd);
 
   if((pid = Fork()) == 0){
-    read(parent_fd[0], &buf, 6);  //直到父进程写完才解除阻塞
+    close(parent_fd[1]);
+    close(child_fd[0]);
+    read(parent_fd[0], buf, 6); //直到父进程写完才解除阻塞
+    close(parent_fd[0]);
     printf("%d: received ping\n", getpid());
     write(child_fd[1], buf, 6);
+    close(child_fd[1]);
   }else{
+    close(parent_fd[0]);
+    close(child_fd[1]);
     write(parent_fd[1], "hello\n", 6);
-    read(child_fd[0], &buf, 6);  //直到子进程写完才解除阻塞
+    close(parent_fd[1]);
+    read(child_fd[0], buf, 6);  //直到子进程写完才解除阻塞
+    close(child_fd[0]);
     printf("%d: received pong\n", getpid());
   }
 
