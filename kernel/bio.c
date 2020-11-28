@@ -23,31 +23,40 @@
 #include "fs.h"
 #include "buf.h"
 
+#define HASH 13
+
 struct {
-  struct spinlock lock;
+  struct spinlock lock[HASH];
   struct buf buf[NBUF];
 
   // Linked list of all buffers, through prev/next.
   // head.next is most recently used.
-  struct buf head;
+  struct buf head[HASH];
 } bcache;
 
 void
 binit(void)
 {
   struct buf *b;
+  int i;
 
-  initlock(&bcache.lock, "bcache");
-
-  // Create linked list of buffers
-  bcache.head.prev = &bcache.head;
-  bcache.head.next = &bcache.head;
+  for(i=0; i<HASH; i++){
+    initlock(&bcache.lock[i], "bcache");
+    // Create linked list of buffers
+    bcache.head[i].prev = &bcache.head[i];
+    bcache.head[i].next = &bcache.head[i];
+  }
+    
+  int num;
   for(b = bcache.buf; b < bcache.buf+NBUF; b++){
-    b->next = bcache.head.next;
-    b->prev = &bcache.head;
+    acquire(&bcache.lock[num]);
+    num = NBUF % HASH;
+    b->next = bcache.head[num].next; //头插法
+    b->prev = &bcache.head[num];
     initsleeplock(&b->lock, "buffer");
-    bcache.head.next->prev = b;
-    bcache.head.next = b;
+    bcache.head[num].next->prev = b;
+    bcache.head[num].next = b;
+    release(&bcache.lock[num]);
   }
 }
 
@@ -59,30 +68,57 @@ bget(uint dev, uint blockno)
 {
   struct buf *b;
 
-  acquire(&bcache.lock);
+  uint _bhash = blockno % HASH;
+  uint bhash = _bhash;
 
+  acquire(&bcache.lock[_bhash]);
   // Is the block already cached?
-  for(b = bcache.head.next; b != &bcache.head; b = b->next){
+  for(b = bcache.head[_bhash].next; b != &bcache.head[_bhash]; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
-      release(&bcache.lock);
+      release(&bcache.lock[_bhash]);
       acquiresleep(&b->lock);
       return b;
     }
   }
 
   // Not cached; recycle an unused buffer.
-  for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
-    if(b->refcnt == 0) {
+  for(b = bcache.head[_bhash].prev; b != &bcache.head[_bhash]; b = b->prev){
+    if(b->refcnt == 0){
       b->dev = dev;
       b->blockno = blockno;
       b->valid = 0;
       b->refcnt = 1;
-      release(&bcache.lock);
+      release(&bcache.lock[_bhash]);
       acquiresleep(&b->lock);
       return b;
     }
   }
+  for(int i=0; i<(HASH-1); i++){
+    bhash = (bhash + 1) % HASH;
+    acquire(&bcache.lock[bhash]);
+    for(b = bcache.head[bhash].prev; b != &bcache.head[bhash]; b = b->prev){
+      if(b->refcnt == 0) {
+        b->dev = dev;
+        b->blockno = blockno;
+        b->valid = 0;
+        b->refcnt = 1;
+        b->prev->next = b->next; //拿到b
+        b->next->prev = b->prev;
+        
+        b->next = bcache.head[_bhash].next; 
+        b->prev = &bcache.head[_bhash];
+        b->next->prev = b;
+        b->prev->next = b;
+        release(&bcache.lock[bhash]);
+        release(&bcache.lock[_bhash]);
+        acquiresleep(&b->lock);
+        return b;
+      }
+    }
+    release(&bcache.lock[bhash]);
+  }
+  release(&bcache.lock[_bhash]);
   panic("bget: no buffers");
 }
 
@@ -119,33 +155,38 @@ brelse(struct buf *b)
 
   releasesleep(&b->lock);
 
-  acquire(&bcache.lock);
+  uint bhash = b->blockno % HASH;
+
+  acquire(&bcache.lock[bhash]);
   b->refcnt--;
   if (b->refcnt == 0) {
     // no one is waiting for it.
-    b->next->prev = b->prev;
+    b->next->prev = b->prev; //拿出b
     b->prev->next = b->next;
-    b->next = bcache.head.next;
-    b->prev = &bcache.head;
-    bcache.head.next->prev = b;
-    bcache.head.next = b;
+    b->next = &bcache.head[bhash]; //将b放到head的前面
+    b->prev = bcache.head[bhash].prev;
+    bcache.head[bhash].prev->next = b;
+    bcache.head[bhash].prev = b;
   }
-  
-  release(&bcache.lock);
+  release(&bcache.lock[bhash]);
 }
 
 void
 bpin(struct buf *b) {
-  acquire(&bcache.lock);
+  uint bhash = b->blockno % HASH;
+
+  acquire(&bcache.lock[bhash]);
   b->refcnt++;
-  release(&bcache.lock);
+  release(&bcache.lock[bhash]);
 }
 
 void
 bunpin(struct buf *b) {
-  acquire(&bcache.lock);
+  uint bhash = b->blockno % HASH;
+
+  acquire(&bcache.lock[bhash]);
   b->refcnt--;
-  release(&bcache.lock);
+  release(&bcache.lock[bhash]);
 }
 
 
