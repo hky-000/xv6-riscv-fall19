@@ -48,6 +48,7 @@ binit(void)
   }
     
   int num;
+  // 分配buf
   for(b = bcache.buf; b < bcache.buf+NBUF; b++){
     acquire(&bcache.lock[num]);
     num = NBUF % HASH;
@@ -73,6 +74,7 @@ bget(uint dev, uint blockno)
 
   acquire(&bcache.lock[_bhash]);
   // Is the block already cached?
+  // 查看需要获取的块是否已经在对应缓存
   for(b = bcache.head[_bhash].next; b != &bcache.head[_bhash]; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
@@ -83,6 +85,7 @@ bget(uint dev, uint blockno)
   }
 
   // Not cached; recycle an unused buffer.
+  // 没有命中，找当前链表是否有空闲位置
   for(b = bcache.head[_bhash].prev; b != &bcache.head[_bhash]; b = b->prev){
     if(b->refcnt == 0){
       b->dev = dev;
@@ -94,6 +97,7 @@ bget(uint dev, uint blockno)
       return b;
     }
   }
+  // 没有空闲位置，找其它链表是否有空闲位置，窃取过来
   for(int i=0; i<(HASH-1); i++){
     bhash = (bhash + 1) % HASH;
     acquire(&bcache.lock[bhash]);

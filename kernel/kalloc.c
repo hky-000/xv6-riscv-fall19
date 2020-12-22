@@ -23,7 +23,10 @@ struct kmem{
   struct run *freelist;
 };
 
-struct kmem kmems[NCPU];
+struct kmem kmems[NCPU]; // 多核
+// 为每个CPU维护一个空闲链表，每个链表有专用的锁
+// 自旋锁：bcache.lock用于表示当前访问的bcache缓存块数据结构的是否被锁住
+// 睡眠锁：b.lock用于表示bcache缓存块数据结构中的当前缓存数据块buf是否被锁住
 
 void
 kinit()
@@ -31,7 +34,7 @@ kinit()
   for(int i=0; i<NCPU; i++){
     initlock(&kmems[i].lock, "kmem");
   }
-  freerange(end, (void*)PHYSTOP);
+  freerange(end, (void*)PHYSTOP); // 为所有运行freerange的CPU分配空闲的内存
 }
 
 void
@@ -63,8 +66,10 @@ kfree(void *pa)
   push_off();
   int id = cpuid();
   pop_off();
+
   acquire(&kmems[id].lock);
-  r->next = kmems[id].freelist;
+  // 将释放的空间插入空闲链表
+  r->next = kmems[id].freelist; 
   kmems[id].freelist = r;
   release(&kmems[id].lock);
 }
@@ -80,12 +85,14 @@ kalloc(void)
   push_off();
   int id = cpuid();
   pop_off();
+
   acquire(&kmems[id].lock);
   r = kmems[id].freelist;
   if(r) //若有空页，则取出
     kmems[id].freelist = r->next;
   release(&kmems[id].lock);
 
+  // 窃取其它链表的空闲区
   int i = 0;
   if(!r){
     for(i=0; i<NCPU; i++){
