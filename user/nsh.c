@@ -20,7 +20,7 @@ int runcmd(char *argv1, char** argv){
   char *stdin = 0;
   char *stdout = 0;
 
-  for(char** v = argv; *v != 0; ++v){
+  for(char** v = argv; *v != 0; ++v){ // 地址数组以0为结尾
     if(strcmp(*v, "<") == 0){
       *v = 0;
       stdin = *(v + 1);
@@ -113,7 +113,7 @@ int main(void)
     //将每一个参数抽离出来并以'\0'为结尾
     int nbuf = strlen(buf);
     argc = 0; // 每一次都要初始为0
-    argv[argc++] = buf;
+    argv[argc++] = buf; // 存放每个参数的首地址
     for(int i = 0; i < nbuf; i++) {
       if(buf[i] == ' ') {
         buf[i] = '\0';
