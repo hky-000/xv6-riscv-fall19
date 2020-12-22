@@ -56,6 +56,8 @@ void bit_clear(char *array, int index) {
   array[index/8] = (b & ~m);
 }
 
+// 由于alloc数组的一位代表一对伙伴块的分配情况
+// B1_is_free XOR B2_is_free
 // Set bit at position index in array alloc
 void bit_set_alloc(char *array, int index)
 {
@@ -133,9 +135,10 @@ bd_malloc(uint64 nbytes)
   int fk, k;
 
   acquire(&lock);
-
   // Find a free block >= nbytes, starting with smallest k possible
+  // 首先计算得到能满足需求的最小的块
   fk = firstk(nbytes);
+  // 从这个大小的块开始寻找，可用的能满足需求的最小的块
   for (k = fk; k < nsizes; k++) {
     if(!lst_empty(&bd_sizes[k].free))
       break;
@@ -147,7 +150,9 @@ bd_malloc(uint64 nbytes)
 
   // Found a block; pop it and potentially split it.
   char *p = lst_pop(&bd_sizes[k].free);
+  // 调用bit_set_alloc记录分配情况，位数要/2
   bit_set_alloc(bd_sizes[k].alloc, blk_index(k, p) >> 1);
+  // 拆分块为所需的大小并填充使用情况
   for(; k > fk; k--) {
     // split a block at size k and mark one half allocated at size k-1
     // and put the buddy on the free list at size k-1
@@ -187,7 +192,7 @@ bd_free(void *p) {
     if (bit_isset(bd_sizes[k].alloc, buddy >> 1)) {  // is buddy allocated?
       break;   // break out of loop
     }
-    // budy is free; merge with buddy
+    // buddy is free; merge with buddy
     q = addr(k, buddy);
     lst_remove(q);    // remove buddy from free list
     if(buddy % 2 == 0) {
@@ -246,11 +251,12 @@ int
 bd_initfree_pair(int k, int bi, int direction) {
   int buddy = (bi % 2 == 0) ? bi+1 : bi-1; // 找伙伴
   int free = 0;
+  // alloc=1,伙伴块中有一个被分配
   if(bit_isset(bd_sizes[k].alloc, bi >> 1)) {
     free = BLK_SIZE(k);
     // 左边发现被分配alloc=1，则一定是左边的被占用；右边发现被分配alloc=1，则一定是右边的被占用
-    // direction = 0, put right-hand block on free list
-    // direction = 1, put left-hand block
+    // 左边direction = 0, put right-hand block on free list
+    // 右边direction = 1, put left-hand block
     if(bi % 2 == direction) 
       lst_push(&bd_sizes[k].free, addr(k, buddy)); // put buddy on free list
     else

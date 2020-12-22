@@ -16,6 +16,7 @@
 struct devsw devsw[NDEV];
 struct {
   struct spinlock lock;
+  // struct file file[NFILE]; 去除NFILE的限制
 } ftable;
 
 void
@@ -29,10 +30,12 @@ struct file*
 filealloc(void)
 {
   struct file *f;
+
   acquire(&ftable.lock);
+  // 使用bd_malloc分配空间，而非遍历[NFILE]数组
   f = bd_malloc(sizeof(struct file));
   if(f){
-    f->ref = 1;
+    f->ref = 1; // reference count
     release(&ftable.lock);
     return f;
   }
@@ -56,13 +59,18 @@ filedup(struct file *f)
 void
 fileclose(struct file *f)
 {
+  // struct file ff; 减少锁的作用范围
   acquire(&ftable.lock);
   if(f->ref < 1)
     panic("fileclose");
-  if(--f->ref > 0){ // ????
+  if(--f->ref > 0){ // f->ref减1
     release(&ftable.lock);
     return;
   }
+  // 此时f->ref为0
+  // ff = *f;用于存储f的信息，方便之后慢慢释放空间
+  // f->ref = 0;
+  // f->type = FD_NONE;
   release(&ftable.lock);
 
   if(f->type == FD_PIPE){
