@@ -27,10 +27,10 @@ void prime(int *data, int num){
 	pipe(p);
   if(Fork() == 0){
     close(p[0]);
+    //从data数组中读出字符，向管道写入所有字符
     for(i = 0; i < num; i++){
       temp = *(data + i);
       write(p[1], &temp, 4); //int 4个字节
-      //printf("write: %d\n",temp);
     }
     close(p[1]);
     exit();
@@ -39,16 +39,14 @@ void prime(int *data, int num){
     int count = 0;
     int buf;
     int flag;
+    // 从管道读出字符，并且只有当前轮挑选出来的字符可以写入data数组
     while((flag = read(p[0], &buf, 4)) != 0){
-      //printf("flag: %d\n",flag);
-      //printf("read: %d\n",buf);
       if(buf % base != 0){
         *data = buf;
         data += 1;
         count++;
       }
     }
-    //printf("flag: %d\n",flag);
     close(p[0]);
     prime(data - count, count);
     
