@@ -6,6 +6,9 @@
 #define MAX_CHAR 128
 #define MAX_ARG 32
 
+// cat显示文件的内容
+// grep查找并输出文件中包含所找内容的数据
+
 int getcmd(char* buf, int nbuf){
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
@@ -23,7 +26,7 @@ int runcmd(char *argv1, char** argv){
   for(char** v = argv; *v != 0; ++v){ // 地址数组以0为结尾
     if(strcmp(*v, "<") == 0){
       *v = 0;
-      stdin = *(v + 1);
+      stdin = *(v + 1); // 下一个参数的位置
       ++v;
     }
     if(strcmp(*v, ">") == 0){
@@ -49,7 +52,6 @@ int runcmd(char *argv1, char** argv){
         dup(fd[0]);//
         runcmd(pipe_argv[0], pipe_argv);
         close(fd[0]);
-        //close(0);
         exit(0);
       }
       close(fd[0]);
@@ -82,7 +84,6 @@ int runcmd(char *argv1, char** argv){
     if(stdout != 0) close(1);
     if(pipe_argv != 0){
       close(fd[1]);
-      //close(1);
       wait(0);
     }
     exit(0);
