@@ -74,7 +74,8 @@ bget(uint dev, uint blockno)
 
   acquire(&bcache.lock[_bhash]);
   // Is the block already cached?
-  // 查看需要获取的块是否已经在对应缓存，命中则返回块的位置，释放自旋锁，并获得睡眠锁
+  // 在块对应的hash链表里面找是否命中
+  // 命中则返回块的位置，释放自旋锁，并获得睡眠锁
   for(b = bcache.head[_bhash].next; b != &bcache.head[_bhash]; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
