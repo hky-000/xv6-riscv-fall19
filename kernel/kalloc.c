@@ -68,7 +68,7 @@ kfree(void *pa)
   pop_off();
 
   acquire(&kmems[id].lock);
-  // 将释放的空间插入空闲链表
+  // 将释放的空间插入当前CPU的空闲链表
   r->next = kmems[id].freelist; 
   kmems[id].freelist = r;
   release(&kmems[id].lock);
