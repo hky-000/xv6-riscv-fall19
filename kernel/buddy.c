@@ -242,7 +242,7 @@ bd_mark(void *start, void *stop)
         // if a block is allocated at size k, mark it as split too.
         bit_set(bd_sizes[k].split, bi);
       }
-      bit_set_alloc(bd_sizes[k].alloc, bi >> 1);
+      bit_set_alloc(bd_sizes[k].alloc, bi >> 1); // alloc设置---一位代表一个伙伴块
     }
   }
 }
@@ -333,7 +333,7 @@ bd_init(void *base, void *end) {
   // initialize free list and allocate the alloc array for each size k
   for (int k = 0; k < nsizes; k++) {
     lst_init(&bd_sizes[k].free);
-    sz = sizeof(char)* ROUNDUP(NBLK(k), 16) / 16;
+    sz = sizeof(char)* ROUNDUP(NBLK(k), 16) / 16; // alloc一位代表伙伴块的分配情况
     bd_sizes[k].alloc = p;
     memset(bd_sizes[k].alloc, 0, sz);
     p += sz;
@@ -350,15 +350,15 @@ bd_init(void *base, void *end) {
   p = (char *) ROUNDUP((uint64) p, LEAF_SIZE);
 
   // done allocating; mark the memory range [base, p) as allocated, so
-  // that buddy will not hand out that memory.
+  // that buddy will not hand out that memory.元数据区
   int meta = bd_mark_data_structures(p);
   
   // mark the unavailable memory range [end, HEAP_SIZE) as allocated,
-  // so that buddy will not hand out that memory.
+  // so that buddy will not hand out that memory.无效区
   int unavailable = bd_mark_unavailable(end, p);
   void *bd_end = bd_base+BLK_SIZE(MAXSIZE)-unavailable;
   
-  // initialize free lists for each size k
+  // initialize free lists for each size k 初始化空闲链表
   int free = bd_initfree(p, bd_end);
 
   // check if the amount that is free is what we expect
